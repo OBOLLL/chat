@@ -1,2 +1,2 @@
 # chat
-Light chat on Node.js
+Simple chat on Node.js
