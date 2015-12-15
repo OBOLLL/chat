@@ -1,0 +1,228 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Чат</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body,
+      textarea {
+        font: 13px Helvetica, Arial;
+      }
+
+      ul {
+        list-style: none;
+      }
+
+      .login {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: black;
+      }
+      .login__inner {
+        margin: 100px auto 0;
+        width: 550px;
+        text-align: center;
+      }
+      .login__inner h1 {
+        margin-bottom: 10px;
+        color: #FFF;
+      }
+      .login__inner input[type="text"] {
+        padding: 5px;
+        width: 240px;
+        font-size: 14px;
+      }
+      .login__inner button {
+        width: 70px;
+        vertical-align: top;
+        height: 32px;
+        border-radius: 5px;
+        background-color: #fff;
+      }
+
+      .chat {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+
+      .chat__panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 69px;
+      }
+
+      .chat__messages {
+        position: absolute;
+        top: 15px;
+        left: 0;
+        width: 80%;
+        bottom: 15px;
+        overflow-y: auto;
+      }
+      .chat__messages ul {
+        list-style-type: none;
+        margin: 0;
+        padding: 10px;
+      }
+      .chat__messages ul li {
+        padding: 5px 10px;
+      }
+      .chat__messages ul li:nth-child(odd) {
+        background: #eee;
+      }
+
+      .chat__users {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 20%;
+        bottom: 69px;
+        padding-top: 10px;
+      }
+      .chat__users ul {
+        padding: 10px 10px 10px 17px;
+        list-style:decimal;
+      }
+
+      .chat__input {
+        background: #333;
+        padding: 3px;
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        height: 76px;
+      }
+      .chat__input textarea {
+        border: 0;
+        padding: 10px;
+        width: 90%;
+        height: 70px;
+        margin-right: .5%;
+      }
+      .chat__input button {
+        width: 9%;
+        border-radius: 4px;
+        background: #B5D3FF;
+        border: none;
+        margin-top: 18px;
+        padding: 10px;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login" class="login">
+      <div class="login__inner">
+        <h1>Добро пожаловать в чат!</h1>
+          <form id="loginForm" action="">
+            <input id="loginInput" type="text" autocomplete="off" placeholder="Пожалуйста, введите ваше имя" class="form-control"/>
+            <button class="btn">Отправить</button>
+          </form>
+          <p id="errorMessage" class="login-error text-danger" style="display: none;">Участник с таким именем уже существует. Пожалуйста, используйте другое имя.</p>
+      </div>
+    </div>
+    <div id="chat" class="chat" style="display: none;">
+      <div class="chat__panel row">
+        <div class="chat__messages">
+          <ul id="list_messages"></ul>
+        </div>
+        <div class="chat__users">
+          <label>Онлайн:</label>
+          <ul id="list_users"></ul>
+        </div>
+      </div>
+      <div class="chat__input">
+        <form id="chatForm" action="">
+          <textarea id="chatInput"></textarea>
+          <button>Отправить</button>
+        </form>
+      </div>
+    </div>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script>
+      var socket = io().connect('http://localhost');
+
+      var loginForm = document.getElementById('loginForm'),
+          loginInput = document.getElementById('loginInput'),
+          errorMessage = document.getElementById('errorMessage');
+
+      var login = document.getElementById('login'),
+          chat = document.getElementById('chat'),
+          messages = document.getElementById('list_messages'),
+          list_users = document.getElementById('list_users');
+
+      var chatForm = document.getElementById('chatForm'),
+          chatInput = document.getElementById('chatInput');
+
+      //sending user name
+      loginForm.onsubmit = function(){
+        if (loginInput.value != '') {
+          socket.emit('user name', loginInput.value);
+          loginInput.value = '';
+          errorMessage.style.display = 'none';
+        }
+        return false;
+      };
+
+      socket.on('user exists', function(){
+        errorMessage.style.display = 'block';
+      });
+
+      socket.on('start chat', function(msgs, users_online){
+        login.style.display = 'none';
+        chat.style.display = 'block';
+
+        for (var i=0; i < msgs.length; i++) {
+          messages.innerHTML += '<li>' + msgs[i] +'</li>';
+        }
+
+        show_users(users_online);
+      });
+
+      socket.on('user connected', function(user, users_online){
+        messages.innerHTML += '<li>' + user +' connected</li>';
+        show_users(users_online);
+      });
+
+      socket.on('user disconnected', function(user, users_online){
+        messages.innerHTML += '<li>' + user +' disconnected</li>';
+        show_users(users_online);
+      });
+
+      function show_users(users_online) {
+        list_users.innerHTML = '';
+        for (var i=0; i < users_online.length; i++) {
+          list_users.innerHTML += '<li>' + users_online[i] +'</li>';
+        }
+      }
+
+
+      //sending chat message
+      chatForm.onsubmit = function() {
+        var msg = chatInput.value.replace(/\n\r?/g, '<br />');;
+        socket.emit('chat message', msg);
+        messages.innerHTML += '<li>me: ' + msg +'</li>';
+        chatInput.value = '';
+        return false;
+      };
+
+      //listening chat message from other users
+      socket.on('chat message', function(msg){
+        messages.innerHTML += '<li>' + msg +'</li>';
+      });
+    </script>
+  </body>
+</html>
